@@ -1,6 +1,32 @@
-[package]
-name = "hachiware"
+# Virtual manifest: the root is a workspace only, it defines no package of its
+# own. Crates placed directly under crates/ join automatically — the glob is a
+# single level and does not reach nested directories.
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+# crates/hachiware is RP2040 firmware and is its own workspace root, because it
+# needs a default `build.target` and that setting is workspace-wide. Excluding
+# it here keeps the two from clashing; see its Cargo.toml for the full reason.
+#
+# Until the first sister crate lands, this workspace has no members and
+# root-level cargo commands have nothing to operate on. That is expected.
+exclude = ["crates/hachiware"]
+
+# Inherited by members with `version.workspace = true` etc., so shared metadata
+# is edited in one place. Does not reach crates/hachiware, which is excluded.
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
+repository = "https://github.com/scrtreddev/hachiware"
 
-[dependencies]
+# Central dependency versions, shared by every member:
+#   serde = { workspace = true }
+[workspace.dependencies]
+
+[workspace.lints.rust]
+unsafe_code = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }

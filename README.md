@@ -1,1 +1,60 @@
 # hachiware
+
+Firmware for the Raspberry Pi Pico 1 (RP2040). The repo is a workspace, so
+non-firmware sister projects can live alongside it under `crates/`.
+
+## Setup
+
+Requires [Nix](https://nixos.org/download/) with flakes, and
+[direnv](https://direnv.net/):
+
+```sh
+direnv allow      # or `nix develop` to enter the shell manually
+```
+
+That provides everything else — Rust 1.98.1, the `thumbv6m-none-eabi` target,
+and the flashing tools.
+
+## Build and flash
+
+```sh
+cd crates/hachiware
+cargo build
+cargo run         # builds and flashes
+```
+
+Before `cargo run`, hold **BOOTSEL** while plugging the Pico in so it mounts as
+`RPI-RP2`. The cargo runner (`elf2uf2-rs -d`) converts the ELF and copies it
+across.
+
+## Layout
+
+```
+.
+├── flake.nix                      # dev shell definition
+├── Cargo.toml                     # outer workspace — sister crates go here
+└── crates/
+    ├── shared/                    # types used by both sides
+    └── hachiware/                 # RP2040 firmware, its own workspace root
+        ├── .cargo/config.toml     # default target, flash runner, linker flags
+        ├── build.rs               # stages memory.x for the linker
+        ├── memory.x               # RP2040 flash/RAM layout
+        └── src/
+            ├── main.rs            # #![no_std] entry point
+            └── firmware/          # board bring-up and main loop
+```
+
+`crates/hachiware` is deliberately excluded from the outer workspace and is its
+own workspace root. Firmware needs `build.target = "thumbv6m-none-eabi"`, and
+that key is workspace-wide — set it at the root and every sister crate gets
+cross-compiled to the Pico too. Cargo has no stable per-package target
+(`package.forced-target` is nightly-only), so detaching is the way to give the
+firmware a default target without imposing it on everything else.
+
+The cost is a separate `Cargo.lock` and `target/` for the firmware.
+
+Sharing code across the boundary still works — membership and dependency
+resolution are unrelated, so the firmware takes `shared` as a plain path
+dependency. Such a crate must compile without `std`: `shared` gates its
+allocating API behind a default `std` feature that the firmware switches off
+with `default-features = false`.

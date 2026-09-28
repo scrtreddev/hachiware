@@ -1,0 +1,51 @@
+# This crate is its own workspace root, deliberately detached from the one at
+# the repo root (which lists it under `exclude`).
+#
+# Why: firmware wants `build.target = "thumbv6m-none-eabi"`, and that key is
+# workspace-wide — set it in the outer workspace and every sister crate gets
+# cross-compiled to the Pico too. Cargo has no stable per-package target, so
+# the alternative is passing `--target` to every firmware command and living
+# with rust-analyzer checking this crate for the host.
+#
+# The cost is a separate Cargo.lock and target/ directory from the rest of the
+# repo, which is normal for embedded crates.
+[workspace]
+
+[package]
+name = "hachiware"
+# Spelled out rather than inherited: `version.workspace = true` requires being
+# a member of the outer workspace, which this crate is not.
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/scrtreddev/hachiware"
+
+[[bin]]
+name = "hachiware"
+# There is no `test` crate for a bare-metal target, so building the implicit
+# test/bench harnesses fails with `can't find crate for 'test'`. Nothing runs
+# host tests here anyway, and rust-analyzer checks with --all-targets by
+# default, so leaving these on produces a permanent phantom error in the editor.
+test = false
+bench = false
+
+[dependencies]
+# A member of the OUTER workspace, pulled in by path. Workspace membership and
+# dependency resolution are unrelated, so the exclusion above does not get in
+# the way. `default-features = false` drops its `std` feature, without which it
+# would not link for a bare-metal target.
+shared = { path = "../shared", default-features = false }
+
+cortex-m = "0.7.9"
+cortex-m-rt = "0.7.7"
+embedded-hal = "1.0.0"
+panic-halt = "1.0.0"
+rp-pico = "0.9.0"
+
+[lints.rust]
+# Bare-metal bring-up legitimately needs unsafe, and cortex-m-rt's `#[entry]`
+# expands to an unsafe item in this crate.
+unsafe_code = "allow"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }

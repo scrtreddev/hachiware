@@ -38,14 +38,34 @@
 
         pkgs = import nixpkgs { inherit system; };
 
+        # Raspberry Pi Pico 1 = RP2040 = Cortex-M0+ = `thumbv6m-none-eabi`.
+        # (Pico 2 / RP2350 would be thumbv8m.main-none-eabihf instead — a
+        # different target, not a newer version of this one.)
+        picoTarget = "thumbv6m-none-eabi";
+
         # completeToolchain = rustc, cargo, rustfmt, clippy, rust-src,
-        # rust-analyzer and friends as one derivation, all at the same version.
-        # Add cross targets later with `fenix.packages.${system}.combine`
-        # (see symmatrics' flake.nix for the wasm/musl pattern).
-        rustToolchain = (fenix.packages.${system}.toolchainOf {
-          channel = rustVersion;
-          sha256 = rustSha;
-        }).completeToolchain;
+        # rust-analyzer and friends, all at the same version. `combine` grafts
+        # the cross-compiled `rust-std` for each extra target into that same
+        # derivation, which is what makes `cargo build --target <t>` work
+        # without rustup ever being involved.
+        rustToolchain =
+          let
+            fx = fenix.packages.${system};
+            base = fx.toolchainOf {
+              channel = rustVersion;
+              sha256 = rustSha;
+            };
+            # Same channel + hash as the host toolchain: the std for a cross
+            # target must match the rustc that consumes it.
+            picoStd = fx.targets.${picoTarget}.toolchainOf {
+              channel = rustVersion;
+              sha256 = rustSha;
+            };
+          in
+          fx.combine [
+            base.completeToolchain
+            picoStd.rust-std
+          ];
       in
       {
         devShells.default = pkgs.mkShell {
@@ -56,6 +76,14 @@
             cargo-nextest
             cargo-deny
             cargo-watch
+
+            # --- RP2040 flashing (no debug probe required) ---
+            # Hold BOOTSEL while plugging the Pico in and it enumerates as a
+            # USB mass-storage device. `elf2uf2-rs` turns cargo's ELF into the
+            # .uf2 that volume accepts; `picotool load` pushes an ELF or .uf2
+            # over USB directly, skipping the drag-and-drop.
+            elf2uf2-rs
+            picotool
 
             git
           ]);

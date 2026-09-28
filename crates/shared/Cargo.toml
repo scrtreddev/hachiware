@@ -1,0 +1,20 @@
+[package]
+name = "shared"
+# Inherited from [workspace.package] at the repo root — this crate IS a member
+# of the outer workspace, unlike the firmware.
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+# On by default, so host-side crates get the full API with no ceremony. The
+# firmware turns it off with `default-features = false`, which is what makes
+# the crate compile for a bare-metal target.
+default = ["std"]
+std = []
+
+[dependencies]
+
+[lints]
+workspace = true

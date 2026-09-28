@@ -1,0 +1,26 @@
+# Cargo discovers config from the CURRENT WORKING DIRECTORY upward, so this
+# file applies when you run cargo from inside crates/hachiware. That only works
+# because this crate is its own workspace root (see the [workspace] table in
+# Cargo.toml) — a config file inside an ordinary workspace *member* is ignored
+# when cargo is driven from the workspace root.
+
+[build]
+# The whole crate is RP2040 firmware, so the Pico is the default target and no
+# --target flag is needed. rust-analyzer reads this too: without it, it checks
+# the crate for the host and reports spurious errors from rp2040-boot2's
+# `#[link_section = ".boot2"]`, which is not valid Mach-O.
+target = "thumbv6m-none-eabi"
+
+[target.thumbv6m-none-eabi]
+# `cargo run` converts the ELF to .uf2 and, with -d, copies it straight onto a
+# Pico mounted in BOOTSEL mode.
+runner = "elf2uf2-rs -d"
+# Alternative, over USB without the mass-storage mount:
+#   runner = "picotool load -u -v -x -t elf"
+
+rustflags = [
+  # cortex-m-rt ships link.x, which pulls in the memory.x that build.rs
+  # stages into OUT_DIR.
+  "-C", "link-arg=--nmagic",
+  "-C", "link-arg=-Tlink.x",
+]
