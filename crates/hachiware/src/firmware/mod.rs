@@ -1,63 +1,40 @@
-//! Board bring-up and the main firmware loop.
+//! Board bring-up and firmware tasks.
 //!
 //! Currently blinks the onboard LED (GPIO25) — a smoke test that the
 //! toolchain, linker script and flashing path all work end to end.
 
-use rp_pico as bsp;
-
-use bsp::hal::{
-    clocks::{init_clocks_and_plls, Clock},
-    pac,
-    sio::Sio,
-    watchdog::Watchdog,
-};
-use embedded_hal::digital::OutputPin;
+use embassy_executor::Spawner;
+use embassy_rp::gpio::{Level, Output};
+use embassy_time::{Duration, Timer};
 use shared::BlinkPattern;
-
-/// The Pico board's crystal.
-const XTAL_FREQ_HZ: u32 = 12_000_000;
 
 /// Blink timing, defined in the crate shared with host-side tooling.
 const PATTERN: BlinkPattern = BlinkPattern::HEARTBEAT;
 
-/// Brings up clocks and GPIO, then runs forever.
-pub fn run() -> ! {
-    // Both `take()` calls are the singleton handoff: they succeed exactly once
-    // per boot, which is what makes exclusive access to the peripherals safe.
-    let mut pac = pac::Peripherals::take().unwrap();
-    let core = pac::CorePeripherals::take().unwrap();
+/// Initialises the chip and starts the firmware's tasks.
+///
+/// `embassy_rp::init` replaces the manual clock/PLL/watchdog bring-up that a
+/// bare rp-hal program does by hand, and hands back the peripheral singletons.
+pub async fn run(spawner: Spawner) {
+    let p = embassy_rp::init(Default::default());
 
-    let mut watchdog = Watchdog::new(pac.WATCHDOG);
-    let sio = Sio::new(pac.SIO);
+    // Spawning rather than looping inline is the point of the executor: more
+    // tasks can be added here and they interleave on the single core without
+    // any of them blocking the others.
+    // Calling a `#[task]` fn yields a token, not a future; it fails only when
+    // the task's statically allocated pool is exhausted, which cannot happen
+    // on the single spawn of a task declared with no `pool_size`.
+    let led = Output::new(p.PIN_25, Level::Low);
+    spawner.spawn(blink(led, PATTERN).unwrap());
+}
 
-    // Brings the system clock up to 125 MHz off the external crystal.
-    let clocks = init_clocks_and_plls(
-        XTAL_FREQ_HZ,
-        pac.XOSC,
-        pac.CLOCKS,
-        pac.PLL_SYS,
-        pac.PLL_USB,
-        &mut pac.RESETS,
-        &mut watchdog,
-    )
-    .ok()
-    .unwrap();
-
-    // SysTick-based delay, so it has to know the clock rate set above.
-    let mut delay = cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().to_Hz());
-
-    let pins = bsp::Pins::new(
-        pac.IO_BANK0,
-        pac.PADS_BANK0,
-        sio.gpio_bank0,
-        &mut pac.RESETS,
-    );
-    let mut led = pins.led.into_push_pull_output();
-
+/// Drives one LED forever.
+#[embassy_executor::task]
+async fn blink(mut led: Output<'static>, pattern: BlinkPattern) -> ! {
     loop {
-        led.set_high().unwrap();
-        delay.delay_ms(PATTERN.on_ms);
-        led.set_low().unwrap();
-        delay.delay_ms(PATTERN.off_ms);
+        led.set_high();
+        Timer::after(Duration::from_millis(pattern.on_ms as u64)).await;
+        led.set_low();
+        Timer::after(Duration::from_millis(pattern.off_ms as u64)).await;
     }
 }

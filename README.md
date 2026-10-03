@@ -1,7 +1,8 @@
 # hachiware
 
-Firmware for the Raspberry Pi Pico 1 (RP2040). The repo is a workspace, so
-non-firmware sister projects can live alongside it under `crates/`.
+Firmware for the Raspberry Pi Pico 1 (RP2040), built on
+[Embassy](https://embassy.dev). The repo is a workspace, so non-firmware
+sister projects can live alongside it under `crates/`.
 
 ## Setup
 

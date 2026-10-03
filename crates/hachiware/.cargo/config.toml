@@ -19,8 +19,12 @@ runner = "elf2uf2-rs -d"
 #   runner = "picotool load -u -v -x -t elf"
 
 rustflags = [
-  # cortex-m-rt ships link.x, which pulls in the memory.x that build.rs
-  # stages into OUT_DIR.
   "-C", "link-arg=--nmagic",
+  # cortex-m-rt's script: vector table and reset handler. It does
+  # `INCLUDE memory.x`, which build.rs stages into OUT_DIR.
   "-C", "link-arg=-Tlink.x",
+  # embassy-rp's script: places the second-stage bootloader it supplies into
+  # the BOOT2 region memory.x reserves. Without it the image has no .boot2
+  # section and the chip will not start.
+  "-C", "link-arg=-Tlink-rp.x",
 ]
