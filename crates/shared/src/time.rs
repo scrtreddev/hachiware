@@ -9,6 +9,10 @@ impl Ticks {
     pub fn inner(&self) -> u64 {
         self.0
     }
+
+    pub fn diff_u64(&self, rhs: Ticks) -> u64 {
+        rhs.0.saturating_sub(self.0)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -34,10 +38,7 @@ impl Time {
     pub fn new(ticks: u64, unix_time: Option<u64>) -> Self {
         Time {
             mono: Ticks::new(ticks),
-            wall: match unix_time {
-                Some(time) => Some(UnixTime::new(time)),
-                None => None,
-            },
+            wall: unix_time.map(UnixTime::new),
         }
     }
 }

@@ -3,13 +3,25 @@
 //! Currently blinks the onboard LED (GPIO25) — a smoke test that the
 //! toolchain, linker script and flashing path all work end to end.
 
+pub mod receiver;
+
+use crate::{
+    firmware::receiver::Receiver,
+    se::{Hardware, atecc608::ATECC608},
+};
 use embassy_executor::Spawner;
+use embassy_futures::select::{Either, select};
 use embassy_rp::gpio::{Level, Output};
-use embassy_time::{Duration, Timer};
-use embassy_futures::select::{select, Either};
-use shared::blink::BlinkPattern;
-use vault::{Vault, effect::{Effect, Completed}, event::Event};
-use super::se::Hardware;
+use embassy_time::{Duration, Instant, Timer};
+use shared::{
+    blink::BlinkPattern,
+    time::{Ticks, Time},
+};
+use vault::{
+    Vault,
+    effect::{Completed, Effect},
+    event::Event,
+};
 
 /// Blink timing, defined in the crate shared with host-side tooling.
 const PATTERN: BlinkPattern = BlinkPattern::HEARTBEAT;
@@ -29,6 +41,7 @@ pub async fn run(spawner: Spawner) {
     // on the single spawn of a task declared with no `pool_size`.
     let led = Output::new(p.PIN_25, Level::Low);
     spawner.spawn(blink(led, PATTERN).unwrap());
+    spawner.spawn(hachiware().unwrap());
 }
 
 pub struct Hachiware {
@@ -42,35 +55,64 @@ impl Hachiware {
         }
     }
 
-    pub async fn run(self) {
-        loop { self.handle_run(); }
+    pub async fn run(mut self, hw: impl Hardware, rx: Receiver) {
+        loop {
+            self.handle_run(&hw, &rx).await;
+        }
     }
 
-    pub async fn handle_run(&self) {
-        /*
+    pub async fn handle_run(&mut self, hw: &impl Hardware, rx: &Receiver) {
         while let Some(effect) = self.vault.poll_effect() {
-            match Self::perform(effect, hw).await {
-                Some(completed) => self.vault.handle_completed(completed),
-                None => {},
+            if let Some(completed) = Self::perform(effect, hw).await {
+                self.vault.handle_completion(completed);
             }
         }
 
-        while let Some(event) = self.vault.poll_event() {
+        while let Some(_event) = self.vault.poll_event() {
             // defmt::info!("{}", event);
             // hw.notify_host(event).await;
         }
 
         match select(
-            self.vault.poll_timeout(),
-        ) {
-
+            rx.receive_input(),
+            Self::sleep_until(self.vault.poll_timeout()),
+        )
+        .await
+        {
+            Either::First(input) => {
+                self.vault.handle_input(input);
+            }
+            Either::Second(_) => {
+                self.vault.handle_timeout(Self::now());
+            }
         }
-        */
     }
 
     pub async fn perform(effect: Effect, hw: &impl Hardware) -> Option<Completed> {
         None
     }
+
+    fn now() -> Time {
+        Time::new(Instant::now().as_ticks(), None)
+    }
+
+    async fn sleep_until(then: Option<Ticks>) {
+        let now = Ticks::new(Instant::now().as_ticks());
+        let time_to_wait: u64 = if let Some(then) = then {
+            now.diff_u64(then)
+        } else {
+            u64::MAX
+        };
+        Timer::after_ticks(time_to_wait).await;
+    }
+}
+
+/// Drives Hachiware
+#[embassy_executor::task]
+async fn hachiware() {
+    let hachiware = Hachiware::new();
+    let hw = ATECC608 {};
+    hachiware.run(hw, Receiver::new()).await
 }
 
 /// Drives one LED forever.
