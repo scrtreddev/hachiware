@@ -11,6 +11,7 @@
 use panic_halt as _;
 
 mod firmware;
+pub(crate) mod se;
 
 #[embassy_executor::main]
 async fn main(spawner: embassy_executor::Spawner) {

@@ -35,11 +35,13 @@ bench = false
 # the way. `default-features = false` drops its `std` feature, without which it
 # would not link for a bare-metal target.
 shared = { path = "../shared", default-features = false }
+vault = { path = "../vault", default-features = false }
 cortex-m-rt = "0.7.7"
 panic-halt = "1.0.0"
 embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "executor-thread"] }
 embassy-rp = { version = "0.10.0", features = ["rp2040", "time-driver", "critical-section-impl"] }
 embassy-time = "0.5.1"
+embassy-futures = "0.1.2"
 
 [lints.rust]
 # Bare-metal bring-up legitimately needs unsafe, and the entry point that

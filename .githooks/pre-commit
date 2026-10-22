@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+#
+# Pre-commit gate: fmt, clippy and tests must pass before a commit is created.
+#
+# Installed via `git config core.hooksPath .githooks` (see README § Hooks).
+# Bypass for a genuine emergency with `git commit --no-verify`.
+#
+# NOTE: these checks run against the WORKING TREE, not the staged snapshot.
+# If you have staged a subset of your changes, the result reflects the files on
+# disk. Stashing the remainder to get exact isolation costs more than it is
+# worth here and has its own ways to lose work.
+
+set -uo pipefail
+
+RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; DIM=$'\033[2m'; BOLD=$'\033[1m'; OFF=$'\033[0m'
+if [ ! -t 1 ]; then RED=; GREEN=; YELLOW=; DIM=; BOLD=; OFF=; fi
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT" || exit 1
+
+# --- Does this commit touch anything Rust cares about? --------------------
+# A README-only commit should not pay for a full test run. Err towards
+# running: manifests, lockfiles, cargo config and the toolchain pin all count.
+if git diff --cached --quiet --name-only 2>/dev/null; then
+    staged=""
+else
+    staged="$(git diff --cached --name-only --diff-filter=ACMR)"
+fi
+
+if [ -n "$staged" ] && ! printf '%s\n' "$staged" | grep -Eq \
+    '(\.rs$|(^|/)Cargo\.(toml|lock)$|(^|/)rustfmt\.toml$|(^|/)clippy\.toml$|(^|/)\.cargo/config\.toml$|(^|/)rust-toolchain(\.toml)?$|(^|/)flake\.(nix|lock)$|^\.githooks/)'; then
+    echo "${DIM}pre-commit: no Rust-relevant files staged, skipping checks.${OFF}"
+    exit 0
+fi
+
+# --- Toolchain present? ---------------------------------------------------
+# A commit from an editor or GUI client may not inherit the direnv/nix PATH.
+if ! command -v cargo >/dev/null 2>&1; then
+    echo "${RED}${BOLD}pre-commit: cargo not found on PATH.${OFF}"
+    echo "  This repo's toolchain comes from the nix devShell."
+    echo "  Commit from a shell where direnv is active, or run: ${BOLD}nix develop${OFF}"
+    echo "  To bypass: ${BOLD}git commit --no-verify${OFF}"
+    exit 1
+fi
+
+step=0
+run() {
+    local label="$1"; shift
+    local dir="$1"; shift
+    step=$((step + 1))
+    printf '%s[%d/%d]%s %s %s(%s)%s\n' "$BOLD" "$step" "$TOTAL" "$OFF" "$label" "$DIM" "${dir:-.}" "$OFF"
+
+    local start; start=$(date +%s)
+    if ! ( cd "$ROOT/$dir" && "$@" ); then
+        echo
+        echo "${RED}${BOLD}✗ pre-commit failed:${OFF} ${label}"
+        echo "  ${DIM}in ${dir:-.} —${OFF} ${BOLD}$*${OFF}"
+        case "$label" in
+            *rustfmt*) echo "  Fix with: ${BOLD}cargo fmt --all${OFF}${DIM} (repo root)${OFF} and ${BOLD}cargo fmt -p hachiware${OFF}" ;;
+            *clippy*) echo "  Fix with: ${BOLD}cargo clippy --fix${OFF}${DIM}, or silence deliberately with #[allow(..)] + a reason${OFF}" ;;
+        esac
+        echo "  ${DIM}Bypass (use sparingly): git commit --no-verify${OFF}"
+        exit 1
+    fi
+    local end; end=$(date +%s)
+    printf '      %s✓ %ss%s\n' "$GREEN" "$((end - start))" "$OFF"
+}
+
+TOTAL=5
+echo "${BOLD}pre-commit${OFF} ${DIM}— hachiware${OFF}"
+
+# --- Host workspace: shared + vault ---------------------------------------
+# These are pure, host-testable crates. --all-features turns `std` on, which
+# is what the proptest suites need.
+run "rustfmt    — host workspace"  ""  cargo fmt --all --check
+run "clippy     — host workspace"  ""  cargo clippy --all-targets --all-features -- -D warnings
+run "cargo test — host workspace"  ""  cargo test --all-features
+
+# --- Firmware workspace: hachiware ----------------------------------------
+# Its own workspace root with build.target = thumbv6m-none-eabi. Scoped to
+# -p hachiware because shared and vault are auto-promoted members here too
+# (path dependencies of a workspace root become members) and the host pass
+# above already covered them.
+#
+# No `cargo test`: the firmware target has no `test` crate, which is why its
+# manifest sets test = false / bench = false. Clippy builds it, and that build
+# is what proves shared and vault still compile with default-features = false.
+run "rustfmt    — firmware"        "crates/hachiware"  cargo fmt -p hachiware --check
+run "clippy     — firmware (no_std, thumbv6m)" "crates/hachiware"  cargo clippy -p hachiware --all-targets -- -D warnings
+
+echo "${GREEN}${BOLD}✓ all checks passed${OFF}"

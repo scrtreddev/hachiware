@@ -24,6 +24,12 @@ repository = "https://github.com/scrtreddev/hachiware"
 # Central dependency versions, shared by every member:
 #   serde = { workspace = true }
 [workspace.dependencies]
+defmt = "1.2.0"
+heapless = "0.9.3"
+
+# Internal crates. default-features = false so a member can't silently drag
+# `std` into a no_std build; members opt back in through their own features.
+shared = { path = "crates/shared", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "warn"

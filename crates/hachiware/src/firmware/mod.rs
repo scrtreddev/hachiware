@@ -6,7 +6,10 @@
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Level, Output};
 use embassy_time::{Duration, Timer};
-use shared::BlinkPattern;
+use embassy_futures::select::{select, Either};
+use shared::blink::BlinkPattern;
+use vault::{Vault, effect::{Effect, Completed}, event::Event};
+use super::se::Hardware;
 
 /// Blink timing, defined in the crate shared with host-side tooling.
 const PATTERN: BlinkPattern = BlinkPattern::HEARTBEAT;
@@ -26,6 +29,48 @@ pub async fn run(spawner: Spawner) {
     // on the single spawn of a task declared with no `pool_size`.
     let led = Output::new(p.PIN_25, Level::Low);
     spawner.spawn(blink(led, PATTERN).unwrap());
+}
+
+pub struct Hachiware {
+    vault: Vault,
+}
+
+impl Hachiware {
+    pub fn new() -> Self {
+        Hachiware {
+            vault: Vault::new(),
+        }
+    }
+
+    pub async fn run(self) {
+        loop { self.handle_run(); }
+    }
+
+    pub async fn handle_run(&self) {
+        /*
+        while let Some(effect) = self.vault.poll_effect() {
+            match Self::perform(effect, hw).await {
+                Some(completed) => self.vault.handle_completed(completed),
+                None => {},
+            }
+        }
+
+        while let Some(event) = self.vault.poll_event() {
+            // defmt::info!("{}", event);
+            // hw.notify_host(event).await;
+        }
+
+        match select(
+            self.vault.poll_timeout(),
+        ) {
+
+        }
+        */
+    }
+
+    pub async fn perform(effect: Effect, hw: &impl Hardware) -> Option<Completed> {
+        None
+    }
 }
 
 /// Drives one LED forever.
