@@ -1,16 +1,9 @@
-use shared::{
-    pin::{Pin, PinAttempts},
-    time::Ticks,
-};
+use shared::time::Time;
 
 #[derive(Default)]
-#[repr(u8)]
 pub enum State {
     #[default]
     Locked,
-    ReadingCounter(PinAttempts),
-    IncrementingCounter((Pin, PinAttempts)),
-    Verifying(Pin),
-    Wiping,
-    Unlocked(Ticks),
+    VerifyingPin,
+    Unlocked(Time),
 }

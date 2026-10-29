@@ -15,6 +15,8 @@ use embassy_rp::gpio::{Level, Output};
 use embassy_time::{Duration, Instant, Timer};
 use shared::{
     blink::BlinkPattern,
+    pin::PinAttempts,
+    se::{Curve, CurveSet, Enforcement, SeCapabilities, SeRequest, SeResponse},
     time::{Ticks, Time},
 };
 use vault::{
@@ -44,27 +46,29 @@ pub async fn run(spawner: Spawner) {
     spawner.spawn(hachiware().unwrap());
 }
 
-pub struct Hachiware {
+pub struct Hachiware<H: Hardware> {
     vault: Vault,
+    hw: H,
 }
 
-impl Hachiware {
-    pub fn new() -> Self {
+impl<H: Hardware> Hachiware<H> {
+    pub fn new(hw: H) -> Self {
         Hachiware {
-            vault: Vault::new(),
+            vault: Vault::new(H::CAPABILITIES),
+            hw,
         }
     }
 
-    pub async fn run(mut self, hw: impl Hardware, rx: Receiver) {
+    pub async fn run(mut self, rx: Receiver) {
         loop {
-            self.handle_run(&hw, &rx).await;
+            self.handle_run(&rx).await;
         }
     }
 
-    pub async fn handle_run(&mut self, hw: &impl Hardware, rx: &Receiver) {
+    async fn handle_run(&mut self, rx: &Receiver) {
         while let Some(effect) = self.vault.poll_effect() {
-            if let Some(completed) = Self::perform(effect, hw).await {
-                self.vault.handle_completion(completed);
+            if let Some(completed) = self.perform(effect).await {
+                self.vault.handle_completion(completed, Self::now());
             }
         }
 
@@ -80,7 +84,7 @@ impl Hachiware {
         .await
         {
             Either::First(input) => {
-                self.vault.handle_input(input);
+                self.vault.handle_input(input, Self::now());
             }
             Either::Second(_) => {
                 self.vault.handle_timeout(Self::now());
@@ -88,31 +92,44 @@ impl Hachiware {
         }
     }
 
-    pub async fn perform(effect: Effect, hw: &impl Hardware) -> Option<Completed> {
-        None
+    async fn perform(&self, effect: Effect) -> Option<Completed> {
+        match effect {
+            Effect::Se(req) => match req {
+                SeRequest::VerifyPin(pin) => {
+                    if self.hw.verify_pin(pin).await {
+                        Some(Completed::Se(SeResponse::PinAccepted))
+                    } else {
+                        // TODO: grab and pass pin attempts from SE
+                        Some(Completed::Se(SeResponse::PinRejected(PinAttempts::new())))
+                    }
+                }
+            },
+            Effect::SetLed => None,
+            _ => None,
+        }
     }
 
     fn now() -> Time {
-        Time::new(Instant::now().as_ticks(), None)
+        Time::new(Instant::now().as_millis(), None)
     }
 
     async fn sleep_until(then: Option<Ticks>) {
-        let now = Ticks::new(Instant::now().as_ticks());
-        let time_to_wait: u64 = if let Some(then) = then {
-            now.diff_u64(then)
+        let now = Ticks::new(Instant::now().as_millis());
+        if let Some(mut then) = then {
+            then.sub(now);
+            Timer::after_millis(then.inner()).await;
         } else {
-            u64::MAX
-        };
-        Timer::after_ticks(time_to_wait).await;
+            core::future::pending::<Option<Ticks>>().await;
+        }
     }
 }
 
 /// Drives Hachiware
 #[embassy_executor::task]
 async fn hachiware() {
-    let hachiware = Hachiware::new();
     let hw = ATECC608 {};
-    hachiware.run(hw, Receiver::new()).await
+    let hachiware = Hachiware::new(hw);
+    hachiware.run(Receiver::new()).await
 }
 
 /// Drives one LED forever.

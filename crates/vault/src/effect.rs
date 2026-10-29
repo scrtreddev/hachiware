@@ -1,18 +1,12 @@
-use shared::pin::{Pin, PinAttempts};
+use shared::se::{SeRequest, SeResponse};
 
 #[repr(u8)]
 pub enum Effect {
-    ReadCounter,
-    IncrementCounter(PinAttempts),
-    VerifyPin(Pin),
-    Wipe,
+    Se(SeRequest),
+    SetLed,
 }
 
 #[repr(u8)]
 pub enum Completed {
-    PinCounter(PinAttempts),
-    Written,
-    PinVerified,
-    PinRejected,
-    Wiped,
+    Se(SeResponse),
 }
