@@ -7,8 +7,11 @@
 #![no_std]
 #![no_main]
 
-// Linked for its panic handler; a `no_std` binary must provide exactly one.
-use panic_halt as _;
+// Linked for their side effects: `defmt_rtt` is the global defmt logger, and
+// `panic_probe` is the panic handler (a `no_std` binary must provide exactly
+// one), which logs the panic over RTT before halting.
+use defmt_rtt as _;
+use panic_probe as _;
 
 mod firmware;
 pub(crate) mod se;

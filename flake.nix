@@ -85,6 +85,12 @@
             elf2uf2-rs
             picotool
 
+            # --- RP2040 flashing + logging over SWD (debug probe) ---
+            # A second Pico running Raspberry Pi's `debugprobe` firmware is the
+            # probe. `probe-rs run` flashes over SWD, resets, and streams defmt
+            # log frames back over RTT; it is the cargo runner for the firmware.
+            probe-rs-tools
+
             git
           ]);
 

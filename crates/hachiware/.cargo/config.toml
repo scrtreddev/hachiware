@@ -12,10 +12,12 @@
 target = "thumbv6m-none-eabi"
 
 [target.thumbv6m-none-eabi]
-# `cargo run` converts the ELF to .uf2 and, with -d, copies it straight onto a
-# Pico mounted in BOOTSEL mode.
-runner = "elf2uf2-rs -d"
-# Alternative, over USB without the mass-storage mount:
+# `cargo run` flashes over SWD through a second Pico running the `debugprobe`
+# firmware, resets the target, and prints its defmt logs until Ctrl-C.
+runner = "probe-rs run --chip RP2040"
+# Without a probe (no logs): convert to .uf2 and copy onto a Pico mounted in
+# BOOTSEL mode, or push it over USB without the mass-storage mount:
+#   runner = "elf2uf2-rs -d"
 #   runner = "picotool load -u -v -x -t elf"
 
 rustflags = [
@@ -27,4 +29,11 @@ rustflags = [
   # the BOOT2 region memory.x reserves. Without it the image has no .boot2
   # section and the chip will not start.
   "-C", "link-arg=-Tlink-rp.x",
+  # defmt's script: keeps the table of interned log strings that probe-rs
+  # reads from the ELF to turn log frames back into text.
+  "-C", "link-arg=-Tdefmt.x",
 ]
+
+[env]
+# Compile-time log filter for defmt: trace / debug / info / warn / error.
+DEFMT_LOG = "debug"

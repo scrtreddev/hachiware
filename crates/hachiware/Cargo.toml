@@ -37,7 +37,12 @@ bench = false
 shared = { path = "../shared", default-features = false }
 vault = { path = "../vault", default-features = false }
 cortex-m-rt = "0.7.7"
-panic-halt = "1.0.0"
+# Logging: `defmt` formats on the host, so the firmware only ships an index and
+# the raw arguments. `defmt-rtt` carries those frames to the debug probe over
+# SWD, and `panic-probe` prints the panic message through it before halting.
+defmt = "1"
+defmt-rtt = "1"
+panic-probe = { version = "1", features = ["print-defmt"] }
 embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "executor-thread"] }
 embassy-rp = { version = "0.10.0", features = ["rp2040", "time-driver", "critical-section-impl"] }
 embassy-time = "0.5.1"

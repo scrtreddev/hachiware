@@ -34,6 +34,7 @@ const PATTERN: BlinkPattern = BlinkPattern::HEARTBEAT;
 /// bare rp-hal program does by hand, and hands back the peripheral singletons.
 pub async fn run(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
+    defmt::info!("hachiware booted");
 
     // Spawning rather than looping inline is the point of the executor: more
     // tasks can be added here and they interleave on the single core without
