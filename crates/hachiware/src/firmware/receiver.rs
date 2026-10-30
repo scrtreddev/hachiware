@@ -7,6 +7,7 @@ impl Receiver {
     }
 
     pub async fn receive_input(&self) -> Input {
-        Input::ButtonPressed
+        core::future::pending().await
+        // Input::ButtonPressed
     }
 }

@@ -8,6 +8,7 @@
 
 pub mod blink;
 pub mod input;
+pub mod melody;
 pub mod pin;
 pub mod se;
 pub mod time;

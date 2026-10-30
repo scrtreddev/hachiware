@@ -34,6 +34,15 @@ rustflags = [
   "-C", "link-arg=-Tdefmt.x",
 ]
 
+[alias]
+# `cargo probe`: flash over SWD through the debug probe and stream defmt logs.
+# Same as `cargo run`, spelled out so the two flashing paths read as a pair.
+probe = ["run", "--config", "target.thumbv6m-none-eabi.runner='probe-rs run --chip RP2040'"]
+# `cargo uf2`: no probe needed. Hold BOOTSEL while plugging the Pico in, then
+# run this to copy the firmware onto the RPI-RP2 drive. No logs this way.
+# (Not called `flash`: probe-rs-tools ships a `cargo-flash` it would shadow.)
+uf2 = ["run", "--config", "target.thumbv6m-none-eabi.runner='elf2uf2-rs -d'"]
+
 [env]
 # Compile-time log filter for defmt: trace / debug / info / warn / error.
 DEFMT_LOG = "debug"

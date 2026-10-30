@@ -11,11 +11,11 @@ impl Ticks {
     }
 
     pub fn sub(&mut self, rhs: Ticks) {
-        self.0 = rhs.0.saturating_sub(self.0);
+        self.0 = self.0.saturating_sub(rhs.0);
     }
 
     pub fn diff_u64(&self, rhs: Ticks) -> u64 {
-        rhs.0.saturating_sub(self.0)
+        self.0.saturating_sub(rhs.0)
     }
 }
 
