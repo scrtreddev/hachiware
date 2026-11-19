@@ -12,7 +12,7 @@ impl Hardware for ATECC608 {
         curves: CurveSet::EMPTY.with(Curve::P256),
     };
 
-    async fn verify_pin(&self, pin: Pin) -> bool {
+    async fn verify_pin(&self, _pin: Pin) -> bool {
         true
     }
 }

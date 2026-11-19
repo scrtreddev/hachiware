@@ -4,7 +4,7 @@ use shared::{
     se::{Curve, CurveSet, Enforcement, SeCapabilities},
 };
 
-pub enum TropicSquare {}
+pub struct TropicSquare {}
 impl Hardware for TropicSquare {
     const CAPABILITIES: SeCapabilities = SeCapabilities {
         pin_limit: Enforcement::Mcu,
@@ -15,7 +15,7 @@ impl Hardware for TropicSquare {
             .with(Curve::X25519),
     };
 
-    async fn verify_pin(&self, pin: Pin) -> bool {
+    async fn verify_pin(&self, _pin: Pin) -> bool {
         true
     }
 }

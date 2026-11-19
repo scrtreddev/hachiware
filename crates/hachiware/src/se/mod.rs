@@ -2,10 +2,7 @@ pub(crate) mod atecc608;
 pub(crate) mod se050e2;
 pub(crate) mod tropic;
 
-use shared::{
-    pin::Pin,
-    se::{SeCapabilities, SeResponse},
-};
+use shared::{pin::Pin, se::SeCapabilities};
 
 pub trait Hardware {
     const CAPABILITIES: SeCapabilities;

@@ -12,6 +12,8 @@ pub enum Event {
 pub enum Refusal {
     WrongPin(PinAttempts),
     IdleTimeOut,
+    LockedOut,
+    Stale,
     Busy,
     Unsupported,
 }

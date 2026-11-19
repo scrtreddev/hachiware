@@ -1,6 +1,5 @@
 use super::pin::{Pin, PinAttempts};
 
-#[derive(Clone, Copy)]
 pub enum SeRequest {
     VerifyPin(Pin),
 }
@@ -11,6 +10,10 @@ pub enum SeResponse {
     PinRejected(PinAttempts),
     LockedOut,
     Failed,
+}
+
+pub enum SeError {
+    Generic,
 }
 
 #[derive(Clone, Copy)]

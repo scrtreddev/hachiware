@@ -4,6 +4,5 @@ use shared::time::Time;
 pub enum State {
     #[default]
     Locked,
-    VerifyingPin,
     Unlocked(Time),
 }

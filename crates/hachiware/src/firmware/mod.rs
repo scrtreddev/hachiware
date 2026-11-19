@@ -7,7 +7,7 @@ pub mod receiver;
 
 use crate::{
     firmware::receiver::Receiver,
-    se::{Hardware, atecc608::ATECC608},
+    se::{Hardware, atecc608::ATECC608, se050e2::SE050E2, tropic::TropicSquare},
 };
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
@@ -19,14 +19,12 @@ use embassy_time::{Duration, Instant, Timer};
 use shared::{
     blink::BlinkPattern,
     melody::{MORNING_EXERCISE, Note},
-    pin::PinAttempts,
-    se::{Curve, CurveSet, Enforcement, SeCapabilities, SeRequest, SeResponse},
+    se::{SeRequest, SeResponse},
     time::{Ticks, Time},
 };
 use vault::{
     Vault,
     effect::{Completed, Effect},
-    event::Event,
 };
 
 /// Blink timing, defined in the crate shared with host-side tooling.
@@ -112,18 +110,12 @@ impl<H: Hardware> Hachiware<H> {
 
     async fn perform(&self, effect: Effect) -> Option<Completed> {
         match effect {
-            Effect::Se(req) => match req {
-                SeRequest::VerifyPin(pin) => {
-                    if self.hw.verify_pin(pin).await {
-                        Some(Completed::Se(SeResponse::PinAccepted))
-                    } else {
-                        // TODO: grab and pass pin attempts from SE
-                        Some(Completed::Se(SeResponse::PinRejected(PinAttempts::new())))
-                    }
-                }
-            },
+            Effect::Se(call) => {
+                let (request, then) = call.split();
+                let resp = drive_se(&self.hw, request).await;
+                Some(then.answer(resp))
+            }
             Effect::SetLed => None,
-            _ => None,
         }
     }
 
@@ -142,10 +134,25 @@ impl<H: Hardware> Hachiware<H> {
     }
 }
 
+async fn drive_se(hw: &impl Hardware, request: SeRequest) -> SeResponse {
+    match request {
+        SeRequest::VerifyPin(pin) => {
+            if hw.verify_pin(pin).await {
+                SeResponse::PinAccepted
+            } else {
+                // TODO: grab and pass pin attempts from SE
+                SeResponse::Failed
+            }
+        }
+    }
+}
+
 /// Drives Hachiware
 #[embassy_executor::task]
 async fn hachiware() {
     let hw = ATECC608 {};
+    let _hw = TropicSquare {};
+    let _hww = SE050E2 {};
     let hachiware = Hachiware::new(hw);
     hachiware.run(Receiver::new()).await
 }
