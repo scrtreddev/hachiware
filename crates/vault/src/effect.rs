@@ -1,11 +1,6 @@
-use crate::{
-    event::{LockReason, Refusal},
-    pin::{Epoch, VerifyPinResumption, VerifyPinVerdict},
-};
-use shared::{
-    pin::Pin,
-    se::{SeError, SeRequest, SeResponse},
-};
+use shared::se::{SeError, SeRequest, SeResponse};
+
+use crate::verify_pin::{VerifyPin, VerifyPinResumption, VerifyPinVerdict};
 
 #[repr(u8)]
 pub enum Effect {
@@ -15,31 +10,23 @@ pub enum Effect {
 
 #[repr(u8)]
 pub enum Completed {
-    PinVerified {
+    VerifyPin {
         then: VerifyPinResumption,
         verdict: Result<VerifyPinVerdict, SeError>,
     },
 }
 
-pub enum Step {
-    VerifyPin(Pin),
-    Unlock,
-    Lock(LockReason),
-    Touch,
-    Refuse(Refusal),
-}
-
 pub enum SeCall {
-    VerifyPin((Pin, Epoch)),
+    VerifyPin(VerifyPin),
 }
 
 impl SeCall {
     pub fn split(self) -> (SeRequest, SeResumption) {
         match self {
-            SeCall::VerifyPin((pin, epoch)) => (
-                SeRequest::VerifyPin(pin),
-                SeResumption::VerifyPin(VerifyPinResumption::new(epoch)),
-            ),
+            SeCall::VerifyPin(call) => {
+                let (pin, then) = call.split();
+                (SeRequest::VerifyPin(pin), SeResumption::VerifyPin(then))
+            }
         }
     }
 }
@@ -51,7 +38,7 @@ pub enum SeResumption {
 impl SeResumption {
     pub fn answer(self, response: SeResponse) -> Completed {
         match self {
-            SeResumption::VerifyPin(then) => Completed::PinVerified {
+            SeResumption::VerifyPin(then) => Completed::VerifyPin {
                 then,
                 verdict: match response {
                     SeResponse::PinAccepted => Ok(VerifyPinVerdict::Accepted),

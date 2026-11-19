@@ -22,10 +22,7 @@ use shared::{
     se::{SeRequest, SeResponse},
     time::{Ticks, Time},
 };
-use vault::{
-    Vault,
-    effect::{Completed, Effect},
-};
+use vault::{Completed, Effect, Vault};
 
 /// Blink timing, defined in the crate shared with host-side tooling.
 const PATTERN: BlinkPattern = BlinkPattern::HEARTBEAT;

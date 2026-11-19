@@ -1,21 +1,34 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub mod effect;
-pub mod event;
-pub mod pin;
-pub mod state;
+mod effect;
+mod epoch;
+mod event;
+mod state;
+mod verify_pin;
 
-use effect::{Completed, Effect, SeCall, Step};
-use event::{Event, LockReason, Refusal};
-use pin::Epoch;
 use shared::{
     input::Input,
+    pin::Pin,
     se::SeCapabilities,
     time::{Ticks, Time},
 };
+
+use epoch::Epoch;
 use state::State;
 
+pub use effect::{Completed, Effect, SeCall, SeResumption};
+pub use event::{Event, LockReason, Refusal};
+pub use verify_pin::{VerifyPin, VerifyPinResumption, VerifyPinVerdict};
+
 const DEFAULT_IDLE_TIMEOUT_MS: u64 = 30_000;
+
+pub(crate) enum Step {
+    VerifyPin(Pin),
+    Unlock,
+    Lock(LockReason),
+    Touch,
+    Refuse(Refusal),
+}
 
 pub struct Vault {
     state: State,
@@ -29,7 +42,7 @@ pub struct Vault {
 impl Vault {
     pub fn new(capabilities: SeCapabilities) -> Self {
         Vault {
-            state: state::State::default(),
+            state: State::default(),
             epoch: Epoch::new(),
             pin_check_outstanding: false,
             capabilities,
@@ -58,7 +71,8 @@ impl Vault {
         match step {
             Step::VerifyPin(pin) => {
                 self.pin_check_outstanding = true;
-                self.emit(Effect::Se(SeCall::VerifyPin((pin, self.epoch))));
+                let call = VerifyPin::new(pin, self.epoch);
+                self.emit(Effect::Se(SeCall::VerifyPin(call)));
             }
             Step::Unlock => {
                 self.transition(State::Unlocked(now));
@@ -80,9 +94,9 @@ impl Vault {
 
     pub fn handle_completion(&mut self, done: Completed, now: Time) {
         let (epoch, next) = match done {
-            Completed::PinVerified { then, verdict } => {
+            Completed::VerifyPin { then, verdict } => {
                 self.pin_check_outstanding = false;
-                (then.inner(), Step::from(then.answer(verdict)))
+                (then.inner(), Step::from(then.resume(verdict)))
             }
         };
         if epoch != self.epoch {
@@ -113,7 +127,10 @@ impl Vault {
     pub fn poll_timeout(&mut self) -> Option<Ticks> {
         if let State::Unlocked(last_activity) = self.state {
             Some(Ticks::new(
-                last_activity.mono.inner() + DEFAULT_IDLE_TIMEOUT_MS,
+                last_activity
+                    .mono
+                    .inner()
+                    .wrapping_add(DEFAULT_IDLE_TIMEOUT_MS),
             ))
         } else {
             None
@@ -142,5 +159,6 @@ impl Vault {
         self.transition(State::Locked);
         self.out.clear();
         self.event.clear();
+        self.pin_check_outstanding = false;
     }
 }

@@ -1,7 +1,6 @@
 const DEFAULT_MAX_PIN_ATTEMPTS: u32 = 5u32;
 
-#[derive(PartialEq, Eq)]
-pub struct Pin(u16);
+pub struct Pin(pub u16);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct PinAttempts(pub u32);

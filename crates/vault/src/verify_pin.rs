@@ -1,40 +1,34 @@
+use shared::{
+    pin::{Pin, PinAttempts},
+    se::SeError,
+};
+
 use crate::{
-    effect::Step,
+    Step,
+    epoch::Epoch,
     event::{LockReason, Refusal},
 };
-use shared::{pin::PinAttempts, se::SeError};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Epoch(u32);
+pub struct VerifyPin(Pin, Epoch);
 
-impl Epoch {
-    pub fn new() -> Self {
-        Self(u32::MIN)
+impl VerifyPin {
+    pub(crate) fn new(pin: Pin, epoch: Epoch) -> Self {
+        Self(pin, epoch)
     }
 
-    pub fn increment(&mut self) {
-        self.0 = self.0.wrapping_add(1u32);
-    }
-}
-
-impl Default for Epoch {
-    fn default() -> Self {
-        Self::new()
+    pub(crate) fn split(self) -> (Pin, VerifyPinResumption) {
+        (self.0, VerifyPinResumption(self.1))
     }
 }
 
 pub struct VerifyPinResumption(Epoch);
 
 impl VerifyPinResumption {
-    pub fn new(epoch: Epoch) -> Self {
-        Self(epoch)
-    }
-
-    pub fn inner(&self) -> Epoch {
+    pub(crate) fn inner(&self) -> Epoch {
         self.0
     }
 
-    pub fn answer(self, verdict: Result<VerifyPinVerdict, SeError>) -> VerifyPinOutcome {
+    pub(crate) fn resume(self, verdict: Result<VerifyPinVerdict, SeError>) -> VerifyPinOutcome {
         if let Ok(verdict) = verdict {
             match verdict {
                 VerifyPinVerdict::Accepted => VerifyPinOutcome::Unlock,
@@ -55,7 +49,7 @@ pub enum VerifyPinVerdict {
     LockedOut,
 }
 
-pub enum VerifyPinOutcome {
+pub(crate) enum VerifyPinOutcome {
     Unlock,
     Refuse(Refusal),
     Lock(LockReason),

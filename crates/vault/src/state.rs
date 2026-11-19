@@ -1,7 +1,7 @@
 use shared::time::Time;
 
 #[derive(Default)]
-pub enum State {
+pub(crate) enum State {
     #[default]
     Locked,
     Unlocked(Time),
