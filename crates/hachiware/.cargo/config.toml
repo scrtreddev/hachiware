@@ -5,30 +5,28 @@
 # when cargo is driven from the workspace root.
 
 [build]
-# The whole crate is RP2040 firmware, so the Pico is the default target and no
-# --target flag is needed. rust-analyzer reads this too: without it, it checks
-# the crate for the host and reports spurious errors from rp2040-boot2's
-# `#[link_section = ".boot2"]`, which is not valid Mach-O.
-target = "thumbv6m-none-eabi"
+# The whole crate is RP2350 firmware (Pico 2 W, Cortex-M33 with FPU), so the
+# Pico is the default target and no --target flag is needed. rust-analyzer
+# reads this too: without it, it checks the crate for the host and reports
+# spurious errors from embassy-rp's `#[link_section = ".start_block"]`, which
+# is not valid Mach-O.
+target = "thumbv8m.main-none-eabihf"
 
-[target.thumbv6m-none-eabi]
+[target.thumbv8m.main-none-eabihf]
 # `cargo run` flashes over SWD through a second Pico running the `debugprobe`
 # firmware, resets the target, and prints its defmt logs until Ctrl-C.
-runner = "probe-rs run --chip RP2040"
-# Without a probe (no logs): convert to .uf2 and copy onto a Pico mounted in
-# BOOTSEL mode, or push it over USB without the mass-storage mount:
-#   runner = "elf2uf2-rs -d"
+runner = "probe-rs run --chip RP235x"
+# Without a probe (no logs): push it over USB to a Pico held in BOOTSEL mode.
+# picotool knows the RP2350's UF2 family; elf2uf2-rs may not.
 #   runner = "picotool load -u -v -x -t elf"
 
 rustflags = [
   "-C", "link-arg=--nmagic",
   # cortex-m-rt's script: vector table and reset handler. It does
-  # `INCLUDE memory.x`, which build.rs stages into OUT_DIR.
+  # `INCLUDE memory.x`, which build.rs stages into OUT_DIR. memory.x also
+  # places the IMAGE_DEF block the RP2350 boot ROM needs; there is no
+  # separate embassy-rp script as there was for the RP2040's boot2.
   "-C", "link-arg=-Tlink.x",
-  # embassy-rp's script: places the second-stage bootloader it supplies into
-  # the BOOT2 region memory.x reserves. Without it the image has no .boot2
-  # section and the chip will not start.
-  "-C", "link-arg=-Tlink-rp.x",
   # defmt's script: keeps the table of interned log strings that probe-rs
   # reads from the ELF to turn log frames back into text.
   "-C", "link-arg=-Tdefmt.x",
@@ -37,11 +35,11 @@ rustflags = [
 [alias]
 # `cargo probe`: flash over SWD through the debug probe and stream defmt logs.
 # Same as `cargo run`, spelled out so the two flashing paths read as a pair.
-probe = ["run", "--config", "target.thumbv6m-none-eabi.runner='probe-rs run --chip RP2040'"]
+probe = ["run", "--config", "target.thumbv8m.main-none-eabihf.runner='probe-rs run --chip RP235x'"]
 # `cargo uf2`: no probe needed. Hold BOOTSEL while plugging the Pico in, then
-# run this to copy the firmware onto the RPI-RP2 drive. No logs this way.
+# run this to load the firmware over USB. No logs this way.
 # (Not called `flash`: probe-rs-tools ships a `cargo-flash` it would shadow.)
-uf2 = ["run", "--config", "target.thumbv6m-none-eabi.runner='elf2uf2-rs -d'"]
+uf2 = ["run", "--config", "target.thumbv8m.main-none-eabihf.runner='picotool load -u -v -x -t elf'"]
 
 [env]
 # Compile-time log filter for defmt: trace / debug / info / warn / error.

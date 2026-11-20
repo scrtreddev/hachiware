@@ -1,36 +1,35 @@
 //! Board bring-up and firmware tasks.
 //!
-//! Currently blinks the onboard LED (GPIO25) — a smoke test that the
-//! toolchain, linker script and flashing path all work end to end.
+//! The Pico 2 W's onboard LED hangs off the CYW43439 radio, not a GPIO (GP25
+//! is the radio's SPI chip select), so there is no blink task until the radio
+//! driver is up. The buzzer melody is the smoke test that the toolchain,
+//! linker script and flashing path all work end to end.
 
 pub mod receiver;
 
 use crate::{
     firmware::receiver::Receiver,
-    se::{Hardware, atecc608::ATECC608, se050e2::SE050E2, tropic::TropicSquare},
+    se::{Hardware, se050e2::SE050E2, tropic::TropicSquare},
 };
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use embassy_rp::{
-    gpio::{Level, Output},
+    clocks::clk_sys_freq,
     pwm::{Config as PwmConfig, Pwm},
 };
-use embassy_time::{Duration, Instant, Timer};
+use embassy_time::{Instant, Timer};
 use shared::{
-    blink::BlinkPattern,
     melody::{MORNING_EXERCISE, Note},
     se::{SeRequest, SeResponse},
     time::{Ticks, Time},
 };
 use vault::{Completed, Effect, Vault};
 
-/// Blink timing, defined in the crate shared with host-side tooling.
-const PATTERN: BlinkPattern = BlinkPattern::HEARTBEAT;
-
-/// PWM clock divider for the buzzer. 125 MHz / 64 leaves the PWM counter at
-/// ~1.95 MHz, so `top` fits a u16 for any pitch from ~30 Hz up.
+/// PWM clock divider for the buzzer. At the RP2350's default 150 MHz, / 64
+/// leaves the PWM counter at ~2.34 MHz, so `top` fits a u16 for any pitch
+/// from ~36 Hz up. The system clock is read at runtime rather than assumed,
+/// so pitches stay right if the clock configuration changes.
 const BUZZER_DIV: u8 = 64;
-const BUZZER_CLOCK_HZ: u32 = 125_000_000 / BUZZER_DIV as u32;
 /// Silence at the end of every note so repeated pitches articulate instead of
 /// blurring into one long tone. Fixed rather than a fraction of the note, so
 /// long notes do not end in an audible hole.
@@ -50,9 +49,6 @@ pub async fn run(spawner: Spawner) {
     // Calling a `#[task]` fn yields a token, not a future; it fails only when
     // the task's statically allocated pool is exhausted, which cannot happen
     // on the single spawn of a task declared with no `pool_size`.
-    let led = Output::new(p.PIN_25, Level::Low);
-    spawner.spawn(blink(led, PATTERN).unwrap());
-
     // Passive piezo on GP20, which is PWM slice 2 channel A.
     let pwm = Pwm::new_output_a(p.PWM_SLICE2, p.PIN_20, PwmConfig::default());
     spawner.spawn(buzzer(pwm, MORNING_EXERCISE).unwrap());
@@ -147,22 +143,10 @@ async fn drive_se(hw: &impl Hardware, request: SeRequest) -> SeResponse {
 /// Drives Hachiware
 #[embassy_executor::task]
 async fn hachiware() {
-    let hw = ATECC608 {};
-    let _hw = TropicSquare {};
-    let _hww = SE050E2 {};
+    let hw = TropicSquare {};
+    let _hw = SE050E2 {};
     let hachiware = Hachiware::new(hw);
     hachiware.run(Receiver::new()).await
-}
-
-/// Drives one LED forever.
-#[embassy_executor::task]
-async fn blink(mut led: Output<'static>, pattern: BlinkPattern) -> ! {
-    loop {
-        led.set_high();
-        Timer::after(Duration::from_millis(pattern.on_ms as u64)).await;
-        led.set_low();
-        Timer::after(Duration::from_millis(pattern.off_ms as u64)).await;
-    }
 }
 
 /// Plays a melody on a passive piezo buzzer, on repeat.
@@ -171,13 +155,14 @@ async fn blink(mut led: Output<'static>, pattern: BlinkPattern) -> ! {
 /// zero is silence.
 #[embassy_executor::task]
 async fn buzzer(mut pwm: Pwm<'static>, melody: &'static [Note]) -> ! {
+    let clock_hz = clk_sys_freq() / BUZZER_DIV as u32;
     let mut cfg = PwmConfig::default();
     cfg.divider = BUZZER_DIV.into();
     loop {
         for note in melody {
             let ms = note.ms as u64;
             if !note.is_rest() {
-                cfg.top = (BUZZER_CLOCK_HZ / note.hz as u32 - 1) as u16;
+                cfg.top = (clock_hz / note.hz as u32 - 1) as u16;
                 cfg.compare_a = cfg.top / 2;
                 pwm.set_config(&cfg);
             }

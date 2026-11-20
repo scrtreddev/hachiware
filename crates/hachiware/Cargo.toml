@@ -1,7 +1,7 @@
 # This crate is its own workspace root, deliberately detached from the one at
 # the repo root (which lists it under `exclude`).
 #
-# Why: firmware wants `build.target = "thumbv6m-none-eabi"`, and that key is
+# Why: firmware wants `build.target = "thumbv8m.main-none-eabihf"`, and that key is
 # workspace-wide — set it in the outer workspace and every sister crate gets
 # cross-compiled to the Pico too. Cargo has no stable per-package target, so
 # the alternative is passing `--target` to every firmware command and living
@@ -44,7 +44,7 @@ defmt = "1"
 defmt-rtt = "1"
 panic-probe = { version = "1", features = ["print-defmt"] }
 embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "executor-thread"] }
-embassy-rp = { version = "0.10.0", features = ["rp2040", "time-driver", "critical-section-impl"] }
+embassy-rp = { version = "0.10.0", features = ["rp235xa", "time-driver", "critical-section-impl"] }
 embassy-time = "0.5.1"
 embassy-futures = "0.1.2"
 

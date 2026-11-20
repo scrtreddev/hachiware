@@ -38,10 +38,11 @@
 
         pkgs = import nixpkgs { inherit system; };
 
-        # Raspberry Pi Pico 1 = RP2040 = Cortex-M0+ = `thumbv6m-none-eabi`.
-        # (Pico 2 / RP2350 would be thumbv8m.main-none-eabihf instead — a
-        # different target, not a newer version of this one.)
-        picoTarget = "thumbv6m-none-eabi";
+        # Raspberry Pi Pico 2 W = RP2350 = Cortex-M33 with FPU =
+        # `thumbv8m.main-none-eabihf`. (The Pico 1's RP2040 was
+        # thumbv6m-none-eabi — a different target, not an older version of
+        # this one.)
+        picoTarget = "thumbv8m.main-none-eabihf";
 
         # completeToolchain = rustc, cargo, rustfmt, clippy, rust-src,
         # rust-analyzer and friends, all at the same version. `combine` grafts
@@ -77,7 +78,7 @@
             cargo-deny
             cargo-watch
 
-            # --- RP2040 flashing (no debug probe required) ---
+            # --- Pico flashing (no debug probe required) ---
             # Hold BOOTSEL while plugging the Pico in and it enumerates as a
             # USB mass-storage device. `elf2uf2-rs` turns cargo's ELF into the
             # .uf2 that volume accepts; `picotool load` pushes an ELF or .uf2
@@ -85,7 +86,7 @@
             elf2uf2-rs
             picotool
 
-            # --- RP2040 flashing + logging over SWD (debug probe) ---
+            # --- Pico flashing + logging over SWD (debug probe) ---
             # A second Pico running Raspberry Pi's `debugprobe` firmware is the
             # probe. `probe-rs run` flashes over SWD, resets, and streams defmt
             # log frames back over RTT; it is the cargo runner for the firmware.

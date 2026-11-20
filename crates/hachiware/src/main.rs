@@ -1,4 +1,4 @@
-//! Firmware entry point for the Raspberry Pi Pico 1 (RP2040).
+//! Firmware entry point for the Raspberry Pi Pico 2 W (RP2350).
 //!
 //! `no_std` because there is no operating system underneath, and `no_main`
 //! because the entry point is not C's `main` — `#[embassy_executor::main]`

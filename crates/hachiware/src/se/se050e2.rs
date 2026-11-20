@@ -7,8 +7,8 @@ use shared::{
 pub struct SE050E2 {}
 impl Hardware for SE050E2 {
     const CAPABILITIES: SeCapabilities = SeCapabilities {
-        pin_limit: Enforcement::Mcu,
-        authenticated_responses: false,
+        pin_limit: Enforcement::Silicon,
+        authenticated_responses: true,
         curves: CurveSet::EMPTY
             .with(Curve::ED25519)
             .with(Curve::P256)
